@@ -1,0 +1,227 @@
+#!/bin/bash
+clear
+
+# Mengambil nilai domain dan token dari file
+domain=$(cat /root/domain)
+token=$(cat /root/token.json | jq -r .access_token)
+
+# Meminta input pengguna
+read -rp "User: " -e user
+read -rp "ID Telegram: " -e telegram
+read -p "Expired (biarkan kosong atau tekan saja enter jika tidak butuh masa aktif): " masaaktif
+
+if [ -n "$masaaktif" ]; then
+    exp="$(date -d "${masaaktif} days" +"%s")"
+    exp2=$(date -d "${masaaktif} days" +"%Y-%m-%d")
+else
+    exp=0
+    exp2=AlwaysON
+fi
+read -rp "Quota (GB): " -e gb
+
+# Menampilkan opsi reset data
+echo "Pilih jenis skilus reset data:"
+echo "1. Tanpa ada reset"
+echo "2. Harian"
+echo "3. Mingguan"
+echo "4. Bulanan"
+echo "5. Tahunan"
+
+# Menerima input pilihan pengguna
+read -p "Masukkan nomor pilihan Anda: " choice
+
+# Memilih strategi reset berdasarkan pilihan pengguna
+case $choice in
+    1)
+        reset_strategy="no_reset"
+        ;;
+    2)
+        reset_strategy="day"
+        ;;
+    3)
+        reset_strategy="week"
+        ;;
+    4)
+        reset_strategy="month"
+        ;;
+    5)
+        reset_strategy="year"
+        ;;
+    *)
+        echo "Pilihan tidak valid."
+        exit 1
+        ;;
+esac
+
+# Menghitung batas kuota dalam bytes
+limitq=$((gb * 1024**3))
+
+# Menggunakan variable pass untuk generate password
+pass=$(openssl rand -base64 16)
+
+# Mengirimkan permintaan ke API
+curl -X 'POST' \
+  "https://${domain}/api/user" \
+  -H 'accept: application/json' \
+  -H "Authorization: Bearer ${token}" \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "username": "'"${user}"'",
+  "proxies": {
+    "shadowsocks": {
+      "password": "'"${pass}"'",
+	  "method": "aes-128-gcm"
+    }
+  },
+  "inbounds": {
+    "shadowsocks": [
+      "SHADOWSOCKS_TCP",
+      "SHADOWSOCKS_WS",
+      "SHADOWSOCKS_WS_ANTIADS",
+      "SHADOWSOCKS_WS_ANTIPORN",
+      "SHADOWSOCKS_GRPC",
+	  "SHADOWSOCKS_OUTLINE"
+    ]
+  },
+  "expire": '"${exp}"',
+  "data_limit": '"${limitq}"',
+  "data_limit_reset_strategy": "'"${reset_strategy}"'",
+  "status": "active",
+  "note": "'"${telegram}"'"
+}' > /tmp/${user}_ss.json
+subs=$(cat /tmp/${user}_ss.json | jq -r .subscription_url)
+tmp1=$(echo -n "aes-128-gcm:${pass}" | base64 -w0)
+linkss1="ss://${tmp1}@${domain}:1080#%28${user}%29%20%5BShadowsocks%20-%20TCP%5D%20Outline"
+linkss2="ss://${tmp1}@${domain}:443?path=%2Fshadowsocks&security=tls&host=${domain}&type=ws&sni=${domain}#%28${user}%29%20%5BShadowsocks%20-%20WS%5D%20TLS"
+linkss3="ss://${tmp1}@${domain}:80?path=%2Fshadowsocks&security=&host=${domain}&type=ws#%28${user}%29%20%5BShadowsocks%20-%20WS%5D%20nonTLS"
+linkss4="ss://${tmp1}@${domain}:443?path=mode=gun&security=tls&type=grpc&serviceName=shadowsocks-service#%28${user}%29%20%5BShadowsocks%20-%20GRPC%5D%20TLS"
+
+echo "==--LINGVPN PRESENTS--==
+TERIMA KASIH TELAH MEMILIH LAYANAN VPN LINGVPN!
+LINK URL/CONFIG UNTUK USER ${user^^} DENGAN EXP ${exp}
+MOHON MELAKUKAN PERPANJANGAN VPN MAKSMIMAL 3 HARI SEBELUM TANGGAL EXPIRED SETIAP BULAN NYA!
+
+DETAIL Keterangan ALPN (HARUS DI SETT!):
+1.) TCP: h2
+2.) WS: http/1.1
+3.) GRPC: h2
+
+DETAIL Port Server (Pilih salah satu, Sesuaikan dengan bug masing masing):
+1.) TLS : 443, 8443, 8880
+2.) HTTP/nonTLS : 80, 2082, 2083, 3128, 8080
+3.) Outline : 1080
+
+DETAIL AKUN lain lain, WebSocket dan serviceName GRPC:
+
+🔑 ShadowSocks 
+a.) path WS: /shadowsocks
+b.) path TCP Header: /ss-tcp
+c.) path WS Antiads: /shadowsocks-antiads
+d.) path WS Anti ADS&PORN: /shadowsocks-antiporn
+e.) serviceName GRPC: shadowsocks-service
+
+Config URL :
+
+-==============================-
+
+1.) Shadowsocks-Outline TCP/UDP
+${linkss1}
+
+2.) Shadowsocks-WS TLS
+${linkss2}
+
+3.) Shadowsocks-WS nonTLS
+${linkss3}
+
+4.) Shadowsocks-GRPC TLS 
+${linkss4}
+
+-==============================-
+
+Format Openclash : 
+
+1.) Shadowsocks-Outline TCP/UDP
+- name: SSOutline_${user}
+  type: ss
+  server: ${domain}
+  port: 1080
+  cipher: aes-128-gcm
+  password: ${pass}
+  udp: true
+
+2.) Shadowsocks-WS TLS
+- name: SSWS_${user}
+  type: ss
+  server: ${domain}
+  port: 443
+  cipher: aes-128-gcm
+  password: ${pass}
+  plugin: v2ray-plugin
+  plugin-opts:
+    mode: websocket
+    host: ${domain}
+    tls: true
+    skip-cert-verify: true
+    path: "/shadowsocks" # selain path ini ada /shadowsocks-antiads atau /shadowsocks-antiporn
+    mux: false
+
+3.) Shadowsocks-WS nonTLS
+- name: SSWS_${user}
+  type: ss
+  server: ${domain}
+  port: 80
+  cipher: aes-128-gcm
+  password: ${pass}
+  plugin: v2ray-plugin
+  plugin-opts:
+    mode: websocket
+    host: ${domain}
+    tls: false
+    skip-cert-verify: true
+    path: "/shadowsocks" # selain path ini ada /shadowsocks-antiads atau /shadowsocks-antiporn
+    mux: false
+
+SELALU PATUHI PERATURAN SERVER DAN TERIMA KASIH SUDAH MEMILIH LINGVPN 🙏
+
+CONTACT WA : https://wa.me/6283129611215
+TELEGRAM CHANNEL : https://t.me/LingVPN
+TELEGRAM GROUP : https://t.me/LingVPN_Group" > "/var/www/html/oc-${user}.conf"
+echo -e "### shadow $user $exp2" >> /var/lib/marzban/akun-ss.conf
+clear
+echo -e "=======-XRAY/SHADOWSOCKS======="
+echo -e ""
+echo -e "Remarks: ${user}"
+echo -e "Domain: ${domain}"
+echo -e "Quota: ${gb} GB"
+echo -e "Reset Quota Strategy: ${reset_strategy}"
+echo -e "================================="
+echo -e "🔑 Port Outline: 1080"
+echo -e "🔑 Port TLS: 443, 8443, 8880"
+echo -e "🔑 Port nonTLS: 80, 2082, 2083, 3128, 8080"
+echo -e "================================="
+echo -e "password: ${pass}"
+echo -e "================================="
+echo -e "network: none/tcp/ws/grpc"
+echo -e "================================="
+echo -e "path: "
+echo -e "a.) TCP: /ss-tcp"
+echo -e "a.) WS: /shadowsocks"
+echo -e "b.) WS Antiads: /shadowsocks-antiads"
+echo -e "d.) WS Anti Ads & porn: /shadowsocks-antiporn"
+echo -e "e.) GRPC: shadowsocks-service"
+echo -e "================================="
+echo -e "alpn: "
+echo -e "a.) WS/TCP: http/1.1"
+echo -e "b.) GRPC: h2"
+echo -e "================================="
+echo -e "tls:"
+echo -e "a.) WS: true (tls), false (nontls)"
+echo -e "b.) GRPC: true"
+echo -e "allowInsecure: true"
+echo -e "================================="
+echo -e "Link config: https://${domain}/oc-${user}.conf"
+echo -e "================================="
+echo -e "Link Subscription : https://${domain}${subs}"
+echo -e "================================="
+echo -e "Expired On: ${exp2}"
+rm -r /tmp/${user}_ss.json

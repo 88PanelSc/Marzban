@@ -1,0 +1,27 @@
+#!/bin/bash
+clear
+domain=$(cat /root/domain)
+		read -rp "User: " -e user
+		read -rp "Pass: " -e pass
+read -p "Expired (days): " masaaktif
+exp=`date -d "$masaaktif days" +"%Y-%m-%d"`
+linkss4="ss://${tmp1}@${domain}:443?path=mode=gun&security=tls&type=grpc&serviceName=shadowsocks-service#$%F0%9F%97%BF%20Lingvpn%20%28${user}%29%20%5BShadowsocks%20-%20GRPC%5D%20TLS"
+clear
+echo -e ""
+echo -e "=======-XRAY/SHADOWSOCKS-GRPC======="
+echo -e ""
+echo -e "Remarks: secret-${user}"
+echo -e "Domain: ${domain}"
+echo -e "================================="
+echo -e "Port GRPC-TLS: 443, 8443, 8880"
+echo -e "password: ${pass}"
+echo -e "network: grpc"
+echo -e "================================="
+echo -e "serviceName: shadowsocks-service"
+echo -e "alpn: h2"
+echo -e "tls: true"
+echo -e "allowInsecure: true"
+echo -e "================================="
+echo -e "Link Subscription : "
+echo -e "================================="
+echo -e "Expired On: ${exp}"
