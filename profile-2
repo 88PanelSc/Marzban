@@ -1,0 +1,6 @@
+#!/bin/bash
+clear
+neofetch
+echo -e " Selamat datang di layanan Marzban-node by LingVPN"
+echo -e ""
+

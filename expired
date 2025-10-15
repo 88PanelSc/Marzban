@@ -1,0 +1,43 @@
+#!/bin/bash
+
+domain=$(cat /root/domain)
+token=$(cat /root/token.json | jq -r .access_token)
+
+# Protokol yang akan dicek
+protocols=("trojan" "vmess" "vless")
+
+# Fungsi untuk mengecek dan menghapus akun yang telah kedaluwarsa
+check_expired() {
+  local protocol="$1"
+  local config_file="/var/lib/marzban/akun-${protocol}.conf"
+
+  data=( $(grep "^### ${protocol}" "${config_file}" | cut -d ' ' -f 3) )
+  now=$(date +"%Y-%m-%d")
+
+  for user in "${data[@]}"
+  do
+    exp=$(grep -w "^### ${protocol} ${user}" "${config_file}" | cut -d ' ' -f 4)
+    d1=$(date -d "${exp}" +%s)
+    d2=$(date -d "${now}" +%s)
+    exp2=$(( (d1 - d2) / 86400 ))
+
+    if [[ "${exp2}" = "0" ]]; then
+      sed -i "/^### ${protocol} ${user} ${exp}/,/^}/d" "${config_file}"
+      rm -r "/var/www/html/oc-${user}.conf"
+
+      # Hapus akun dari server
+      curl -X 'DELETE' \
+        "https://${domain}/api/user/${user}" \
+        -H 'accept: application/json' \
+        -H "Authorization: Bearer ${token}" &> /dev/null
+
+      echo "Untuk user ${user} telah mencapai Expired pada ${exp}" >> "/root/log-exp${protocol}.txt"
+    fi
+  done
+}
+
+# Loop melalui semua protokol
+for protocol in "${protocols[@]}"
+do
+  check_expired "${protocol}"
+done

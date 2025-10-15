@@ -1,0 +1,37 @@
+#!/bin/bash
+clear
+domain=$(cat /root/domain)
+		read -rp "User: " -e user
+		read -rp "Pass: " -e pass
+read -p "Expired (days): " masaaktif
+exp=`date -d "$masaaktif days" +"%Y-%m-%d"`
+linkss2="ss://${tmp1}@${domain}:443?path=%2Fshadowsocks&security=tls&host=${domain}&type=ws&sni=${domain}#$%F0%9F%97%BF%20Lingvpn%20%28${user}%29%20%5BShadowsocks%20-%20WS%5D%20TLS"
+linkss3="ss://${tmp1}@${domain}:80?path=%2Fshadowsocks&security=&host=${domain}&type=ws#$%F0%9F%97%BF%20Lingvpn%20%28${user}%29%20%5BShadowsocks%20-%20WS%5D%20nonTLS"
+clear
+echo -e ""
+echo -e "=======-XRAY/SHADOWSOCKS-WS======="
+echo -e ""
+echo -e "Remarks: secret-${user}"
+echo -e "Domain: ${domain}"
+echo -e "================================="
+echo -e "🔑 Port WS-TLS: 443, 8443, 8880"
+echo -e "🔑 Port WS-nonTLS: 80, 2082, 2083, 3128, 8080"
+echo -e "================================="
+echo -e "password: ${pass}"
+echo -e "network: ws"
+echo -e "================================="
+echo -e "path: "
+echo -e "a.) WS: /shadowsocks"
+echo -e "b.) WS Antiads: /shadowsocks-antiads"
+echo -e "c.) WS Anti Ads & porn: /shadowsocks-antiporn"
+echo -e "================================="
+echo -e "alpn: "
+echo -e "b.) WS: http/1.1"
+echo -e "================================="
+echo -e "tls:"
+echo -e "b.) WS: true (tls), false (nontls)"
+echo -e "allowInsecure: true"
+echo -e "================================="
+echo -e "Link Subscription : "
+echo -e "================================="
+echo -e "Expired On: ${exp}"

@@ -1,0 +1,111 @@
+#!/bin/bash
+
+################################################################################
+# Script Name: User IP Analyzer
+# Description: Analyze connected IPs for different users in Xray access logs.
+# Author: Eko Linggar
+# Version: 1.1
+################################################################################
+
+clear
+
+# Function to print a stylish header
+print_header() {
+    echo "**************************************************"
+    echo "*                                                *"
+    echo "*             User IP Analyzer                   *"
+    echo "*                                                *"
+    echo "**************************************************"
+    echo ""
+}
+
+# Function to print a stylish line
+print_line() {
+    echo "------------------------"
+}
+
+# Path to Xray access log file
+log_file="/var/lib/marzban/assets/access.log"
+
+# Path to the list of Trojan accounts
+trojan_account_file="/var/lib/marzban/akun-trojan.conf"
+
+# Path to the list of VMess accounts
+vmess_account_file="/var/lib/marzban/akun-vmess.conf"
+
+# Path to the list of VLess accounts
+vless_account_file="/var/lib/marzban/akun-vless.conf"
+
+# Main menu
+print_header
+echo "Select an option:"
+echo "1. Check Trojan IPs"
+echo "2. Check VMess IPs"
+echo "3. Check VLess IPs"
+echo "4. Exit"
+
+read -rp "Enter your choice (1-4): " choice
+
+case $choice in
+    1)
+        protocol="Trojan"
+        account_file="$trojan_account_file"
+        ;;
+    2)
+        protocol="VMess"
+        account_file="$vmess_account_file"
+        ;;
+    3)
+        protocol="VLess"
+        account_file="$vless_account_file"
+        ;;
+    4)
+        echo "Exiting..."
+        exit 0
+        ;;
+    *)
+        echo "Invalid choice. Exiting..."
+        exit 1
+        ;;
+esac
+
+# Counter for numbering users
+counter=1
+
+# Total connected IPs counter
+total_ips=0
+
+# Loop through each account and find connected IPs
+while read -r line; do
+    # Extract account name from the line
+    account=$(echo "$line" | awk '{print $3}')
+
+    echo "$counter. User: $account"
+
+    connected_ips=$(awk -v account="$account" '$NF ~ account {print $3}' "$log_file" | awk -F: '{print $1}' | grep -Eo "([0-9]{1,3}\.){3}[0-9]{1,3}" | sort -n -u)
+
+    if [ -z "$connected_ips" ]; then
+        echo "No connected IPs for this user."
+    else
+        echo "Connected IPs:"
+        # Loop through each connected IP and add numbering
+        ip_counter=1
+        while read -r ip; do
+            echo "  $ip_counter. $ip"
+            ((ip_counter++))
+        done <<< "$connected_ips"
+
+        # Update total IPs counter
+        total_ips=$((total_ips + ip_counter - 1))
+    fi
+    
+    # Increment the counter
+    ((counter++))
+
+    # Print a stylish line
+    print_line
+
+done < "$account_file"
+
+# Print total connected IPs
+echo "Total Connected IPs for $protocol: $total_ips"

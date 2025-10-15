@@ -1,0 +1,324 @@
+#!/bin/bash
+clear
+
+# Mengambil nilai domain dan token dari file
+domain=$(cat /root/domain)
+token=$(cat /root/token.json | jq -r .access_token)
+
+# Meminta input pengguna
+read -rp "User: " -e user
+read -rp "ID Telegram: " -e telegram
+read -p "Expired (biarkan kosong atau tekan saja enter jika tidak butuh masa aktif): " masaaktif
+
+if [ -n "$masaaktif" ]; then
+    exp="$(date -d "${masaaktif} days" +"%s")"
+    exp2=$(date -d "${masaaktif} days" +"%Y-%m-%d")
+else
+    exp=0
+    exp2=AlwaysON
+fi
+read -rp "Quota (GB): " -e gb
+
+# Menampilkan opsi reset data
+echo "Pilih jenis skilus reset data:"
+echo "1. Tanpa ada reset"
+echo "2. Harian"
+echo "3. Mingguan"
+echo "4. Bulanan"
+echo "5. Tahunan"
+
+# Menerima input pilihan pengguna
+read -p "Masukkan nomor pilihan Anda: " choice
+
+# Memilih strategi reset berdasarkan pilihan pengguna
+case $choice in
+    1)
+        reset_strategy="no_reset"
+        ;;
+    2)
+        reset_strategy="day"
+        ;;
+    3)
+        reset_strategy="week"
+        ;;
+    4)
+        reset_strategy="month"
+        ;;
+    5)
+        reset_strategy="year"
+        ;;
+    *)
+        echo "Pilihan tidak valid."
+        exit 1
+        ;;
+esac
+
+# Menghitung batas kuota dalam bytes
+limitq=$((gb * 1024**3))
+
+# Menggunakan variable uuid untuk generate password
+uuid=$(cat /proc/sys/kernel/random/uuid)
+
+# Mengirimkan permintaan ke API
+curl -X 'POST' \
+  "https://${domain}/api/user" \
+  -H 'accept: application/json' \
+  -H "Authorization: Bearer ${token}" \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "username": "'"${user}"'",
+  "proxies": {
+    "vmess": {
+      "id": "'"${uuid}"'"
+    }
+  },
+  "inbounds": {
+    "vmess": [
+      "VMESS_TCP",
+      "VMESS_WS",
+      "VMESS_WS_ANTIADS",
+      "VMESS_WS_ANTIPORN",
+      "VMESS_GRPC"
+    ]
+  },
+  "expire": '"${exp}"',
+  "data_limit": '"${limitq}"',
+  "data_limit_reset_strategy": "'"${reset_strategy}"'",
+  "status": "active",
+  "note": "'"${telegram}"'"
+}' > /tmp/${user}_vmess.json
+subs=$(cat /tmp/${user}_vmess.json | jq -r .subscription_url)
+
+# Link VMess
+tcp1=`cat<<EOF
+      {
+      "v": "2",
+      "ps": "(${user}) [VMess - TCP] TLS",
+      "add": "${domain}",
+      "port": "443",
+      "id": "${uuid}",
+      "aid": "0",
+      "net": "tcp",
+      "path": "/vmess-tcp",
+      "type": "http",
+      "host": "",
+      "tls": "tls"
+}
+EOF`
+tcp2=`cat<<EOF
+      {
+      "v": "2",
+      "ps": "(${user}) [VMess - TCP] nonTLS",
+      "add": "${domain}",
+      "port": "80",
+      "id": "${uuid}",
+      "aid": "0",
+      "net": "tcp",
+      "path": "/vmess-tcp",
+      "type": "http",
+      "host": "",
+      "tls": "none"
+}
+EOF`
+ws1=`cat<<EOF
+      {
+      "v": "2",
+      "ps": "(${user}) [VMess - WS] TLS",
+      "add": "${domain}",
+      "port": "443",
+      "id": "${uuid}",
+      "aid": "0",
+      "net": "ws",
+      "path": "/vmess",
+      "type": "none",
+      "host": "",
+      "tls": "tls"
+}
+EOF`
+ws2=`cat<<EOF
+      {
+      "v": "2",
+      "ps": "(${user}) [VMess - WS] nonTLS",
+      "add": "${domain}",
+      "port": "80",
+      "id": "${uuid}",
+      "aid": "0",
+      "net": "ws",
+      "path": "/vmess",
+      "type": "none",
+      "host": "",
+      "tls": "none"
+}
+EOF`
+grpc=`cat<<EOF
+ {
+      "v": "2",
+      "ps": "(${user}) [VMess - GRPC] TLS",
+      "add": "${domain}",
+      "port": "443",
+      "id": "${uuid}",
+      "aid": "0",
+      "net": "grpc",
+      "path": "vmess-service",
+      "type": "gun",
+      "host": "",
+      "tls": "tls"
+}
+EOF`
+vmesslink1="vmess://$(echo $tcp1 | base64 -w 0)"
+vmesslink2="vmess://$(echo $tcp2 | base64 -w 0)"
+vmesslink3="vmess://$(echo $ws1 | base64 -w 0)"
+vmesslink4="vmess://$(echo $ws2 | base64 -w 0)"
+vmesslink5="vmess://$(echo $grpc | base64 -w 0)"
+
+# Contoh Format Openclash
+echo "==--LINGVPN PRESENTS--==
+TERIMA KASIH TELAH MEMILIH LAYANAN VPN LINGVPN!
+LINK URL/CONFIG UNTUK USER ${user^^} DENGAN EXP ${exp2}
+MOHON MELAKUKAN PERPANJANGAN VPN MAKSMIMAL 3 HARI SEBELUM TANGGAL EXPIRED SETIAP BULAN NYA!
+
+DETAIL Keterangan ALPN (HARUS DI SETT!):
+1.) TCP: h2
+2.) WS: http/1.1
+3.) GRPC: h2
+
+DETAIL Port Server (Pilih salah satu, Sesuaikan dengan bug masing masing):
+1.) TLS : 443, 8443, 8880
+2.) HTTP/nonTLS : 80, 2082, 2083, 3128, 8080
+
+DETAIL AKUN lain lain, WebSocket, FLOW, serverName Reality dan serviceName GRPC:
+
+🔑 VMess
+a.) path WS: /vmess atau /enter-your-custom-path/vmess
+b.) path TCP Header: /vmess-tcp
+c.) path WS Antiads: /vmess-antiads
+d.) path WS Anti ADS&PORN: /vmess-antiporn
+e.) serviceName GRPC: vmess-service
+
+Config URL :
+
+-==============================-
+
+1.) VMess-WS TLS
+${vmesslink3}
+
+2.) VMess-WS nonTLS
+${vmesslink4}
+
+3.) Vmess-TCP TLS
+${vmesslink1}
+
+4.) Vmess-TCP nonTLS
+${vmesslink2}
+
+5.) VMess-GRPC TLS 
+${vmesslink3}
+
+-==============================-
+
+Format Openclash : 
+
+1.) VMess-WS TLS
+- name: VmessWS_${user}
+  server: ${domain}
+  port: 443
+  type: vmess
+  uuid:  ${uuid}
+  alterId: 0
+  cipher: auto
+  tls: true
+  skip-cert-verify: true
+  servername: ${domain}
+  alpn:
+   - http/1.1
+  network: ws
+  ws-opts:
+    path: /vmess # selain path ini ada path /vmess-antiads atau /vmess-antiporn
+    headers:
+      Host: ${domain}
+  udp: true
+
+2.) VMess-WS nonTLS
+- name: VmessWS_${user}
+  server: ${domain}
+  port: 80
+  type: vmess
+  uuid:  ${uuid}
+  alterId: 0
+  cipher: auto
+  tls: false
+  skip-cert-verify: true
+  servername: ${domain}
+  alpn:
+   - http/1.1
+  network: ws
+  ws-opts:
+    path: /vmess # selain path ini ada path /vmess-antiads atau /vmess-antiporn
+    headers:
+      Host: ${domain}
+  udp: true
+
+3.) VMess-GRPC TLS 
+- name: VmessGRPC_${user}
+  type: vmess
+  server: ${domain}
+  port: 443
+  uuid: ${uuid}
+  alterId: 0
+  cipher: auto
+  udp: true
+  network: grpc
+  tls: true
+  servername: ${domain}
+  alpn:
+   - h2
+  skip-cert-verify: true
+  grpc-opts:
+    grpc-service-name: vmess-service
+
+SELALU PATUHI PERATURAN SERVER DAN TERIMA KASIH SUDAH MEMILIH LINGVPN 🙏
+
+CONTACT WA : https://wa.me/6283129611215
+TELEGRAM CHANNEL : https://t.me/LingVPN
+TELEGRAM GROUP : https://t.me/LingVPN_Group" > "/var/www/html/oc-${user}.conf"
+echo -e "### vmess $user $exp2" >> /var/lib/marzban/akun-vmess.conf
+clear
+echo -e "=======-XRAY/VMESS======="
+echo -e ""
+echo -e "Remarks: ${user}"
+echo -e "Domain: ${domain}"
+echo -e "Quota: ${gb} GB"
+echo -e "Reset Quota Strategy: ${reset_strategy}"
+echo -e "================================="
+echo -e "🔑 Port TLS: 443, 8443, 8880"
+echo -e "🔑 Port nonTLS: 80, 2082, 2083, 3128, 8080"
+echo -e "================================="
+echo -e "id: ${uuid}"
+echo -e "alterID: 0"
+echo -e "security: auto"
+echo -e "================================="
+echo -e "network: tcp/ws/grpc"
+echo -e "================================="
+echo -e "path & serviceName: "
+echo -e "a.) TCP TLS & NonTLS: /vmess-tcp"
+echo -e "b.) WS TLS & NonTLS: /vmess atau /enter-your-custom-path/vmess"
+echo -e "c.) WS Antiads TLS & NonTLS: /vmess-antiads"
+echo -e "d.) WS Anti Ads & porn: /vmess-antiporn"
+echo -e "e.) GRPC TLS: vmess-service"
+echo -e "================================="
+echo -e "alpn: "
+echo -e "a.) WS/TCP: http/1.1"
+echo -e "b.) GRPC: h2"
+echo -e "================================="
+echo -e "tls:"
+echo -e "a.) WS/TCP: true (tls), false (nontls)"
+echo -e "b.) GRPC: true"
+echo -e "allowInsecure: true"
+echo -e "================================="
+echo -e "Link config: https://${domain}/oc-${user}.conf"
+echo -e "================================="
+echo -e "Link Subscription : https://${domain}${subs}"
+echo -e "================================="
+echo -e "Expired On: ${exp2}"
+rm -r /tmp/${user}_vmess.json
+

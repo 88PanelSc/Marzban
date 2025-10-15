@@ -1,0 +1,12 @@
+#!/bin/bash
+
+domain=$(cat /root/domain)
+userpanel=$(cat /root/userpanel)
+passpanel=$(cat /root/passpanel)
+
+#instal token
+curl -X 'POST' \
+  "https://${domain}/api/admin/token" \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d "grant_type=&username=${userpanel}&password=${passpanel}&scope=&client_id=&client_secret=" > /root/token.json

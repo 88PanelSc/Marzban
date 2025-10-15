@@ -1,0 +1,42 @@
+#!/bin/bash
+clear
+# Fungsi untuk menampilkan daftar pengguna berdasarkan protokol
+list_users() {
+  local protocol="$1"
+  local config_file="/var/lib/marzban/akun-${protocol}.conf"
+
+  echo "Daftar Pengguna untuk Protokol ${protocol}:"
+  echo "========================================="
+  printf "%-4s %-15s %-10s\n" "No" "User" "Expired"
+
+  if [ -f "${config_file}" ]; then
+    counter=1
+    while read -r line; do
+      user=$(echo "${line}" | awk '{print $3}')
+      exp=$(echo "${line}" | awk '{print $4}')
+      printf "%-4d %-15s %-10s\n" "${counter}" "${user}" "${exp}"
+      ((counter++))
+    done < <(grep "^### ${protocol}" "${config_file}")
+
+    total_users=$(grep "^### ${protocol}" "${config_file}" | wc -l)
+    echo -e "\nTotal Pengguna untuk Protokol ${protocol}: ${total_users}\n"
+
+    echo "${total_users}" >> /tmp/total_users_temp.txt
+  else
+    echo "Tidak ada pengguna untuk protokol ${protocol}."
+  fi
+}
+
+# Menampilkan daftar pengguna untuk masing-masing protokol
+echo "========================================="
+list_users "trojan"
+echo "========================================="
+list_users "vmess"
+echo "========================================="
+list_users "vless"
+echo "========================================="
+
+# Menampilkan total keseluruhan pengguna
+total_all_users=$(awk '{ total += $1 } END { print total }' /tmp/total_users_temp.txt)
+echo -e "Total Keseluruhan Pengguna untuk Semua Protokol: ${total_all_users}\n"
+rm /tmp/total_users_temp.txt

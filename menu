@@ -1,0 +1,112 @@
+#!/bin/bash
+domain=$(cat /root/domain)
+
+# Code for service
+export RED='\033[0;31m';
+export GREEN='\033[0;32m';
+export YELLOW='\033[0;33m';
+export BLUE='\033[0;34m';
+export PURPLE='\033[0;35m';
+export CYAN='\033[0;36m';
+export LIGHT='\033[0;37m';
+export NC='\033[0m';
+
+# Export Banner Status Information
+export ERROR="[${RED} ERROR ${NC}]";
+export INFO="[${YELLOW} INFO ${NC}]";
+export OKEY="[${GREEN} OKEY ${NC}]";
+export PENDING="[${YELLOW} PENDING ${NC}]";
+export SEND="[${YELLOW} SEND ${NC}]";
+export RECEIVE="[${YELLOW} RECEIVE ${NC}]";
+
+# Function to print a stylish line
+print_line() {
+    echo "------------------------"
+}
+
+# VAR
+if [[ $(netstat -ntlp | grep -i wireproxy | grep -i 127.0.0.1:40000 | awk '{print $4}' | cut -d: -f2 | xargs | sed -e 's/ /, /g') == '40000' ]]; then
+    WARP="${OKEY} Listening to 127.0.0.1:40000";
+    WARP_STATUS="${GREEN}WARP AMAN!${NC}"
+else
+    WARP="${ERROR}";
+    WARP_STATUS="${RED}WARP ADA ERROR BOSSKUH${NC}"
+fi
+if [[ $(systemctl status ufw | grep -w active | awk '{print $2}' | sed 's/(//g' | sed 's/)//g' | sed 's/ //g') == 'active' ]]; then
+    UFW="${GREEN}[ON]${NC}";
+else
+    UFW="${RED}[ERROR!]${NC}";
+fi
+if [[ $(systemctl status fail2ban | grep -w active | awk '{print $2}' | sed 's/(//g' | sed 's/)//g' | sed 's/ //g') == 'active' ]]; then
+    F2B="${GREEN}[ON]${NC}";
+else
+    F2B="${RED}[ERROR!]${NC}";
+fi
+
+clear
+
+printf "Selamat datang di layanan AutoScript LingVPN x Marzban\n" | lolcat -a
+printf "\n"
+
+printf ">> ${GREEN}List Commands LingVPN${NC}\n"
+print_line
+printf "\-] addvmess        : add user dengan protocol VMess\n"
+printf "\-] addvless        : add user dengan protocol VLess\n"
+printf "\-] addtrojan       : add user dengan protocol Trojan\n"
+printf "\-] delvmess        : delete user protocol VMess\n"
+printf "\-] delvless        : delete user protocol VLess\n"
+printf "\-] deltrojan       : delete user protocol Trojan\n"
+printf "\-] renewvmess      : perpanjang user protocol VMess\n"
+printf "\-] renewvless      : perpanjang user protocol VLess\n"
+printf "\-] renewtrojan     : perpanjang user protocol Trojan\n"
+printf "\-] ceklogin        : cek login user Xray\n"
+printf "\-] buat_token      : add token untuk konfigurasi API\n"
+printf "\-] ceklog          : cek akses log Xray secara Realtime\n"
+printf "\-] cekerror        : cek error log Xray secara Realtime\n"
+printf "\-] ceknginx        : cek akses log Nginx secara Realtime\n"
+printf "\-] ram             : cek ram yang tersisa\n"
+printf "\-] listuser        : menampilkan list user untuk semua Protocol\n"
+printf "\-] cek-kuota       : menampilkan list user dan Penggunaan kuota untuk semua protocol\n"
+printf "\-] setlimit        : sett untuk limitasi user Xray\n"
+printf "\-] menu-backup     : sett untuk backup dan restore Konfigurasi ke Telegram BOT\n"
+printf "\-] bench           : benchmark kemampuan VPS\n"
+printf "\n"
+
+printf ">> ${GREEN}List Commands Marzban${NC}\n"
+print_line
+printf "\-] marzban up                       : start service Marzban\n"
+printf "\-] marzban down                     : stop service Marzban\n"
+printf "\-] marzban restart                  : restart service Marzban\n"
+printf "\-] marzban status                   : cek status service Marzban\n"
+printf "\-] marzban logs                     : cek log service Marzban\n"
+printf "\-] marzban update                   : update service Marzban\n"
+printf "\-] marzban cli admin create --sudo  : add admin dengan akses penuh ke Marzban\n"
+printf "\-] marzban cli admin list           : menampilkan list Admin pada service Marzban\n"
+printf "\-] marzban cli user list            : menampilkan list user pada service Marzban\n"
+printf "\n"
+
+printf ">> ${GREEN}Service port${NC}\n"
+print_line
+printf "\-] VLess Reality TCP + gRPC : 443\n"
+printf "\-] VLess WebSocket          : 80, 443\n"
+printf "\-] VLess gRPC               : 443\n"
+printf "\-] VMess TCP Header         : 80, 443\n"
+printf "\-] VMess WebSocket          : 80, 443\n"
+printf "\-] VMess gRPC               : 443\n"
+printf "\-] Trojan TCP               : 443\n"
+printf "\-] Trojan WebSocket         : 80, 443\n"
+printf "\-] Trojan gRPC              : 443\n"
+printf "\-] Nginx                    : 443, 8081\n"
+printf "\n"
+
+printf ">> ${GREEN}Fitur lain${NC}\n"
+print_line
+printf "\-] Dashboard Marzban GUI    : https://$domain/dashboard\n"
+printf "\-] Port TLS Alternatif      : 8443, 8880\n"
+printf "\-] Port nTLS Alternatif     : 2082, 2083, 3128, 8080\n"
+printf "\-] Warp Wireproxy           : $WARP $WARP_STATUS\n"
+printf "\-] Timezone                 : Asia/Jakarta (+7)\n"
+printf "\-] Fail2Ban                 : $F2B\n"
+printf "\-] Firewall                 : $UFW\n"
+printf "\-] IPv6                     : [OFF]\n"
+printf "\n"

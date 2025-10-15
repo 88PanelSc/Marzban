@@ -1,0 +1,47 @@
+#!/bin/bash
+domain=$(cat /root/domain)
+token=$(cat /root/token.json | jq -r .access_token)
+clear
+
+NUMBER_OF_CLIENTS=$(grep -c -E "^### vmess" "/var/lib/marzban/akun-vmess.conf")
+
+if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
+    echo ""
+    echo "You have no existing clients!"
+    exit 1
+fi
+
+echo ""
+echo " Select the existing client you want to remove"
+echo " Press CTRL+C to return"
+echo " ==============================="
+printf " %-4s %-12s %-12s\n" "No" "User" "Expired"
+grep -E "^### vmess" "/var/lib/marzban/akun-vmess.conf" | cut -d ' ' -f 3-4 | nl -s ') ' | \
+    while read -r line; do
+        printf " %s\n" "$line"
+    done
+
+until [[ ${CLIENT_NUMBER} -ge 1 && ${CLIENT_NUMBER} -le ${NUMBER_OF_CLIENTS} ]]; do
+    if [[ ${CLIENT_NUMBER} == '1' ]]; then
+        read -rp "Select one client [1]: " CLIENT_NUMBER
+    else
+        read -rp "Select one client [1-${NUMBER_OF_CLIENTS}]: " CLIENT_NUMBER
+    fi
+done
+
+CLIENT_NAME=$(grep -E "^### vmess" "/var/lib/marzban/akun-vmess.conf" | cut -d ' ' -f 3-4 | sed -n "${CLIENT_NUMBER}"p)
+user=$(grep -E "^### vmess" "/var/lib/marzban/akun-vmess.conf" | cut -d ' ' -f 3 | sed -n "${CLIENT_NUMBER}"p)
+exp=$(grep -E "^### vmess" "/var/lib/marzban/akun-vmess.conf" | cut -d ' ' -f 4 | sed -n "${CLIENT_NUMBER}"p)
+
+sed -i "/^### vmess $CLIENT_NAME/d" /var/lib/marzban/akun-vmess.conf
+curl -X 'DELETE' \
+  "https://${domain}/api/user/${user}" \
+  -H 'accept: application/json' \
+  -H "Authorization: Bearer ${token}" &> /dev/null
+rm -r /var/www/html/oc-${user}.conf
+clear
+echo " Akun VMess berhasil dihapus"
+echo " =========================="
+printf " %-14s : %s\n" "Client Name" "$user"
+printf " %-14s : %s\n" "Expired On" "$exp"
+echo " =========================="

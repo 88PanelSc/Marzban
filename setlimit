@@ -1,0 +1,88 @@
+#!/bin/bash
+clear
+# Function to print a stylish header
+print_header() {
+    echo "**************************************************"
+    echo "*                                                *"
+    echo "*    User IP Limiter Configuration and Control   *"
+    echo "*                                                *"
+    echo "**************************************************"
+    echo ""
+}
+
+# Function to set the maximum allowed IPs
+set_max_allowed_ips() {
+    echo -n "Enter the maximum allowed number of IPs for each user (enter 0 to disable): "
+    read -r max_ips
+
+    # Validate input
+    if [[ ! "$max_ips" =~ ^[0-9]+$ ]]; then
+        echo "Invalid input. Please enter a valid number."
+        exit 1
+    fi
+
+    # Save the configuration
+    echo "max_allowed_ips=$max_ips" > "/var/lib/marzban/max_ips.conf"
+    echo "Configuration saved successfully."
+}
+
+# Function to disable IP limit
+disable_ip_limit() {
+    echo "Disabling IP limit for all users."
+    echo "max_allowed_ips=0" > "/var/lib/marzban/max_ips.conf"
+    echo "Configuration saved successfully."
+}
+
+# Function to set the cron interval
+set_cron_interval() {
+    echo -n "Enter the cron interval in minutes (enter 0 to disable): "
+    read -r cron_interval
+
+    # Validate input
+    if [[ ! "$cron_interval" =~ ^[0-9]+$ ]]; then
+        echo "Invalid input. Please enter a valid number."
+        exit 1
+    fi
+
+    if [ "$cron_interval" -gt 0 ]; then
+        # Add the cron entry to crontab
+        cron_entry="*/$cron_interval * * * * /usr/bin/autokill" 
+        (crontab -l 2>/dev/null; echo "$cron_entry") | crontab -
+        echo "Cron interval set successfully."
+    else
+        # Disable cron by removing the entry from crontab
+        crontab -l | grep -v "/usr/bin/autokill" | crontab -
+        echo "Cron interval disabled successfully."
+    fi
+}
+
+
+# Main menu
+print_header
+echo "Select an option:"
+echo "1. Set maximum allowed IPs"
+echo "2. Set cron interval"
+echo "3. Disable IP limit"
+echo "4. Exit"
+
+read -rp "Enter your choice (1-4): " choice
+
+case $choice in
+    1)
+        set_max_allowed_ips
+        ;;
+    2)
+        set_cron_interval
+        ;;
+    3)
+        disable_ip_limit
+        ;;
+    4)
+        echo "Exiting..."
+        exit 0
+        ;;
+    *)
+        echo "Invalid choice. Exiting..."
+        exit 1
+        ;;
+esac

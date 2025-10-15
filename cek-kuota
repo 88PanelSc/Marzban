@@ -1,0 +1,67 @@
+#!/bin/bash
+clear
+# Code for service
+export RED='\033[0;31m';
+export GREEN='\033[0;32m';
+export YELLOW='\033[0;33m';
+export BLUE='\033[0;34m';
+export PURPLE='\033[0;35m';
+export CYAN='\033[0;36m';
+export LIGHT='\033[0;37m';
+export NC='\033[0m';
+
+# Path to the list of Trojan accounts
+trojan_account_file="/var/lib/marzban/akun-trojan.conf"
+
+# Path to the list of VMess accounts
+vmess_account_file="/var/lib/marzban/akun-vmess.conf"
+
+# Path to the list of VLess accounts
+vless_account_file="/var/lib/marzban/akun-vless.conf"
+
+# API information
+domain=$(cat /root/domain)
+token=$(cat /root/token.json | jq -r .access_token)
+
+# Function to check quota for a specific account type
+check_quota() {
+    local account_file="$1"
+    local protocol="$2"
+
+    echo -e "\n${YELLOW}${protocol}${NC}\n================"
+
+    while IFS= read -r account; do
+        # Extracting username from the account line (assuming it's in the 3rd position)
+        username=$(echo "$account" | awk '{print $3}')
+
+        # Checking quota using the API
+        response=$(curl -s -X 'GET' \
+          "https://${domain}/api/user/${username}/usage" \
+          -H 'accept: application/json' \
+          -H "Authorization: Bearer ${token}")
+
+        # Extracting information from the response
+        used_traffic=$(echo "$response" | jq -r '.usages[0].used_traffic')
+        used_traffic_gb=$(awk "BEGIN {printf \"%.2f\", ${used_traffic} / (1024^3)}")
+
+        # Displaying user information using printf with color
+        printf "${GREEN}%-4s ${NC}%-15s || ${GREEN}%-10s${NC}GB\n" "$((++counter))." "$username" "$used_traffic_gb"
+    done < "$account_file"
+
+    echo -e "\n"
+}
+
+# Check Trojan account quotas
+check_quota "$trojan_account_file" "Trojan"
+
+# Add a separator between protocols
+echo "================"
+
+# Check VMess account quotas
+check_quota "$vmess_account_file" "VMess"
+
+# Add a separator between protocols
+echo "================"
+
+# Check VLess account quotas
+check_quota "$vless_account_file" "VLess"

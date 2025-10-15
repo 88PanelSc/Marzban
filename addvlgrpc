@@ -1,0 +1,162 @@
+#!/bin/bash
+clear
+
+# Mengambil nilai domain dan token dari file
+domain=$(cat /root/domain)
+token=$(cat /root/token.json | jq -r .access_token)
+
+# Meminta input pengguna
+read -rp "User: " -e user
+read -rp "ID Telegram: " -e telegram
+read -p "Expired (biarkan kosong atau tekan saja enter jika tidak butuh masa aktif): " masaaktif
+
+if [ -n "$masaaktif" ]; then
+    exp="$(date -d "${masaaktif} days" +"%s")"
+    exp2=$(date -d "${masaaktif} days" +"%Y-%m-%d")
+else
+    exp=0
+    exp2=AlwaysON
+fi
+read -rp "Quota (GB): " -e gb
+
+# Menampilkan opsi reset data
+echo "Pilih jenis skilus reset data:"
+echo "1. Tanpa ada reset"
+echo "2. Harian"
+echo "3. Mingguan"
+echo "4. Bulanan"
+echo "5. Tahunan"
+
+# Menerima input pilihan pengguna
+read -p "Masukkan nomor pilihan Anda: " choice
+
+# Memilih strategi reset berdasarkan pilihan pengguna
+case $choice in
+    1)
+        reset_strategy="no_reset"
+        ;;
+    2)
+        reset_strategy="day"
+        ;;
+    3)
+        reset_strategy="week"
+        ;;
+    4)
+        reset_strategy="month"
+        ;;
+    5)
+        reset_strategy="year"
+        ;;
+    *)
+        echo "Pilihan tidak valid."
+        exit 1
+        ;;
+esac
+
+# Menghitung batas kuota dalam bytes
+limitq=$((gb * 1024**3))
+
+# Menggunakan variable uuid untuk generate password
+uuid=$(cat /proc/sys/kernel/random/uuid)
+
+# Mengirimkan permintaan ke API
+curl -X 'POST' \
+  "https://${domain}/api/user" \
+  -H 'accept: application/json' \
+  -H "Authorization: Bearer ${token}" \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "username": "'"${user}"'",
+  "proxies": {
+    "vless": {
+      "id": "'"${uuid}"'"
+    }
+  },
+  "inbounds": {
+    "vless": [
+      "VLESS_GRPC"
+    ]
+  },
+  "expire": '"${exp}"',
+  "data_limit": '"${limitq}"',
+  "data_limit_reset_strategy": "'"${reset_strategy}"'",
+  "status": "active",
+  "note": "'"${telegram}"'"
+}' > /tmp/${user}_vless.json
+subs=$(cat /tmp/${user}_vless.json | jq -r .subscription_url)
+
+# Link VLess
+vlesslink3="vless://${uuid}@${domain}:443?security=tls&type=grpc&host=${domain}&headerType=&serviceName=vless-service&sni=${domain}&fp=&alpn=h2#%28${user}%29%20%5BVLESS%20-%20GRPC%5D%20TLS"
+
+# Contoh Format Openclash
+echo "==--LINGVPN PRESENTS--==
+TERIMA KASIH TELAH MEMILIH LAYANAN VPN LINGVPN!
+LINK URL/CONFIG UNTUK USER ${user^^} DENGAN EXP ${exp2}
+MOHON MELAKUKAN PERPANJANGAN VPN MAKSMIMAL 3 HARI SEBELUM TANGGAL EXPIRED SETIAP BULAN NYA!
+
+DETAIL Keterangan ALPN (HARUS DI SETT!):
+1.) gRPC: h2
+
+DETAIL Port Server (Pilih salah satu, Sesuaikan dengan bug masing masing):
+1.) TLS : 443, 8443, 8880
+
+DETAIL AKUN:
+
+🔑 VLess
+a.) serviceName GRPC: vless-service
+
+Config URL :
+
+1.) VLess-GRPC TLS 
+${vlesslink3}
+
+Format Openclash : 
+
+1.) VLess-GRPC TLS
+- name: VlessGRPC_${user}
+  server: ${domain}
+  port: 443
+  type: vless
+  uuid: ${uuid}
+  network: grpc
+  udp: true
+  tls: true
+  servername: example.com
+  alpn:
+   - h2
+  skip-cert-verify: true
+  grpc-opts:
+    grpc-service-name: vless-service
+
+SELALU PATUHI PERATURAN SERVER DAN TERIMA KASIH SUDAH MEMILIH LINGVPN 🙏
+
+CONTACT WA : https://wa.me/6283129611215
+TELEGRAM CHANNEL : https://t.me/LingVPN
+TELEGRAM GROUP : https://t.me/LingVPN_Group" > "/var/www/html/oc-${user}.conf"
+echo -e "### vless $user $exp2" >> /var/lib/marzban/akun-vless.conf
+clear
+echo -e "=======-XRAY/VLESS-gRPC======="
+echo -e ""
+echo -e "Remarks: ${user}"
+echo -e "Domain: ${domain}"
+echo -e "Quota: ${gb} GB"
+echo -e "Reset Quota Strategy: ${reset_strategy}"
+echo -e "================================="
+echo -e "🔑 Port TLS: 443, 8443, 8880"
+echo -e "================================="
+echo -e "id: ${uuid}"
+echo -e "decryption: none"
+echo -e "network: grpc"
+echo -e "================================="
+echo -e "serviceName: vless-service"
+echo -e "alpn: h2"
+echo -e "gRPC Mode: gun/multi"
+echo -e "tls: true"
+echo -e "allowInsecure: true"
+echo -e "================================="
+echo -e "Link config: https://${domain}/oc-${user}.conf"
+echo -e "================================="
+echo -e "Link Subscription : https://${domain}${subs}"
+echo -e "================================="
+echo -e "Expired On: ${exp2}"
+rm -r /tmp/${user}_vless.json

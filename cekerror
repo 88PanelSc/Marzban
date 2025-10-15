@@ -1,0 +1,2 @@
+#!/bin/bash
+lnav /var/lib/marzban/assets/error.log

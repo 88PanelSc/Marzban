@@ -1,0 +1,86 @@
+#!/bin/bash
+clear
+clearlog
+sleep 10m
+# Path to Xray access log file
+log_file="/var/lib/marzban/assets/access.log"
+
+# Path to store logs for users exceeding the IP limit
+log_folder="/var/lib/marzban/logs"
+
+# API information
+domain=$(cat /root/domain)
+token=$(cat /root/token.json | jq -r .access_token)
+
+# Function to limit connections based on IP for a specific account type
+limit_connections() {
+    local account_file="$1"
+    
+    # Load max_allowed_ips from configuration file
+    source "/var/lib/marzban/max_ips.conf"
+    
+    # Counter for numbering users
+    counter=1
+
+    # Loop through each account and find connected IPs
+    while read -r line; do
+        # Extract account name from the line
+        account=$(echo "$line" | awk '{print $3}')
+
+        echo "$counter. User: $account"
+
+        connected_ips=$(awk -v account="$account" '$NF ~ account {print $3}' "$log_file" | awk -F: '{print $1}' | grep -Eo "([0-9]{1,3}\.){3}[0-9]{1,3}" | sort -n -u)
+
+        if [ -z "$connected_ips" ]; then
+            echo "No connected IPs for this user."
+        else
+            echo "Connected IPs:"
+            # Loop through each connected IP and add numbering
+            ip_counter=1
+            while read -r ip; do
+                echo "  $ip_counter. $ip"
+                ((ip_counter++))
+            done <<< "$connected_ips"
+
+            # Check if the number of unique connected IPs exceeds the limit
+            unique_ip_count=$(echo "$connected_ips" | wc -l)
+            if [ "$unique_ip_count" -gt "$max_allowed_ips" ]; then
+                echo "Limiting connections for user $account. Connected IPs: $connected_ips"
+
+                # Disable user using API
+                curl -X 'PUT' \
+                  "https://${domain}/api/user/${account}" \
+                  -H 'accept: application/json' \
+                  -H "Authorization: Bearer ${token}" \
+                  -H 'Content-Type: application/json' \
+                  -d '{
+                    "status": "disabled"
+                }'  &> /dev/null
+
+                # Save log for the user in the specified folder
+                echo "User $account exceeded the IP limit. Connected IPs: $connected_ips" >> "$log_folder/user_limit_exceeded.log"
+            else
+                echo "No action needed for user $account. Connected IPs: $connected_ips"
+            fi
+        fi
+
+        # Increment the counter
+        ((counter++))
+
+    done < "$account_file"
+}
+
+# Main menu
+echo "Analyzing connected IPs for all protocols..."
+
+# Limit connections for Trojan accounts
+limit_connections "/var/lib/marzban/akun-trojan.conf"
+
+# Limit connections for VMess accounts
+limit_connections "/var/lib/marzban/akun-vmess.conf"
+
+# Limit connections for VLess accounts
+limit_connections "/var/lib/marzban/akun-vless.conf"
+
+echo "Script execution complete."
+
